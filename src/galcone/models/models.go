@@ -3,8 +3,9 @@ package models
 import (
 	"fmt"
 	"log"
-	"net"
 	"time"
+
+	"github.com/gorilla/websocket"
 )
 
 type Message struct {
@@ -36,7 +37,7 @@ type Group struct {
 type Player struct {
 	Id         int
 	SessionId  int
-	Connection *net.Conn
+	Connection *websocket.Conn
 	Login      string
 	Ready      bool
 }

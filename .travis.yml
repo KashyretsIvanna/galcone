@@ -1,0 +1,35 @@
+# @format
+
+sudo: false
+language: go
+services:
+  - docker
+  - node
+  - npm
+
+branches:
+  - develop
+  - master
+  - feature/*
+env:
+  HEROKU_APP_NAME: damp-ravine-74691
+go:
+  - 1.10.x
+before_install:
+  - npm install -g heroku
+  - echo "$(heroku --version)"
+  - docker run --name cassandra -p 127.0.0.1:9042:9042 -d cassandra
+  - export GOPATH=$HOME/gopath/src/github.com/ratoshniuk/galcone
+  - export PATH=$HOME/gopath/bin:$PATH
+  - chmod +x dep.sh
+  - chmod +x redeploy.sh
+  - './dep.sh'
+script:
+  - echo "$(git log | head -1)" > $GOPATH/revision.txt
+  - echo "$HEROKU_APP_NAME"
+  - echo "$MY_SECRET_ENV"
+  - go test -timeout 600s -v ./src/galcone/... -coverprofile=coverage.txt -covermode=count
+  - './redeploy.sh'
+
+after_success:
+  - bash <(curl -s https://codecov.io/bash)

@@ -1,18 +1,18 @@
 package outgoing
 
 import (
-	"encoding/json"
 	"galcone/src/galcone/models"
 	"log"
-	"net"
+
+	"github.com/gorilla/websocket"
 )
 
 const (
-	JoinAcceptedMessageType    = "join_accepted"
-	PlayerJoinedMessageType    = "player_joined"
-	PlayerReadyMessageType     = "player_ready"
-	PlayerLeftMessageType      = "player_left"
-	PlayerKickedMessageType    = "player_kicked"
+	JoinAcceptedMessageType      = "join_accepted"
+	PlayerJoinedMessageType      = "player_joined"
+	PlayerReadyMessageType       = "player_ready"
+	PlayerLeftMessageType        = "player_left"
+	PlayerKickedMessageType      = "player_kicked"
 	ShipsSentResponseMessageType = "ships_sent"
 )
 
@@ -51,21 +51,15 @@ type PlayerLeftResponse struct {
 }
 
 type ShipsSentResponse struct {
-	FromPlanetId      int   `json:"from"`
-	ToPlanetId        int   `json:"to"`
-	Amount            int   `json:"amount"`
-	GroupId           int   `json:"group_id"`
-	ArrivalTimestamp  int64 `json:"arrival_timestamp"`
+	FromPlanetId     int   `json:"from"`
+	ToPlanetId       int   `json:"to"`
+	Amount           int   `json:"amount"`
+	GroupId          int   `json:"group_id"`
+	ArrivalTimestamp int64 `json:"arrival_timestamp"`
 }
 
-func SendJsonResponse(message *models.Message, connection *net.Conn) {
-	jsonBody, err := json.Marshal(message)
-	if err != nil {
-		log.Printf("[outgoing] Failed to marshal message of type '%s': %v", message.Type, err)
-		return
-	}
-
-	_, err = (*connection).Write(jsonBody)
+func SendJsonResponse(message *models.Message, connection *websocket.Conn) {
+	err := connection.WriteJSON(message)
 	if err != nil {
 		log.Printf("[outgoing] Failed to send message of type '%s': %v", message.Type, err)
 		return

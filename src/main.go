@@ -1,20 +1,17 @@
 package main
 
 import (
-	"bufio"
 	"encoding/json"
 	"galcone/src/galcone/container"
 	"galcone/src/galcone/messages/incoming"
 	"galcone/src/galcone/models"
+	"github.com/gorilla/websocket"
 	"log"
-	"net"
-	"os"
+	"net/http"
 )
 
 const (
-	//ConnHost = "localhost"
-	ConnPort = "8081"
-	ConnType = "tcp"
+	WebSocketPort = ":3000"
 )
 
 type handler func(*models.Player, *container.GamesContainer, *json.RawMessage)
@@ -26,78 +23,59 @@ var RequestHandlers = map[string]handler{
 	"send_ships":   incoming.HandleSendShipsRequest,
 }
 
-func main() {
-	listener, err := net.Listen(ConnType, ":"+ConnPort)
-	if err != nil {
-		log.Println("Error listening:", err.Error())
-		os.Exit(1)
-	}
-	defer listener.Close()
-	log.Println("Listening on port:", ConnPort)
+var upgrader = websocket.Upgrader{
+	CheckOrigin: func(r *http.Request) bool {
+		return true // allow all origins for simplicity
+	},
+}
 
+func main() {
 	gameContainer := container.NewGamesContainer()
 	go gameContainer.Run()
 
-	for {
-		conn, err := listener.Accept()
-		log.Print(conn)
+	http.HandleFunc("/ws", func(w http.ResponseWriter, r *http.Request) {
+		conn, err := upgrader.Upgrade(w, r, nil)
 		if err != nil {
-			log.Println("Error accepting connection:", err.Error())
-			os.Exit(1)
+			log.Println("Upgrade error:", err)
+			return
 		}
 
-		log.Printf("New connection established with player: %v", conn.RemoteAddr())
-
-		player := models.Player{
-			Connection: &conn,
+		player := &models.Player{
+			Connection: conn, // You will need to update your Player model to add `WsConn *websocket.Conn`
 		}
-		log.Print(player)
-		go handleRequest(gameContainer, &player)
+		log.Printf("New WebSocket connection: %v", conn.RemoteAddr())
+		go handleRequest(gameContainer, player)
+	})
+
+	log.Println("WebSocket server listening on port", WebSocketPort)
+	err := http.ListenAndServe(WebSocketPort, nil)
+	if err != nil {
+		log.Fatal("ListenAndServe:", err)
 	}
 }
 
 func handleRequest(container *container.GamesContainer, player *models.Player) {
-	log.Printf("Handling requests for player ID: %v", player.Id)
 	for {
-		msgType, payload, err := readMessage(player.Connection)
-		if err {
-			log.Printf("Connection closed for player with ID: %d and session ID: %d", player.Id, player.SessionId)
+		_, message, err := player.Connection.ReadMessage()
+		if err != nil {
+			log.Printf("Connection closed for player ID %d: %v", player.Id, err)
 			return
 		}
 
-		log.Printf("Received message type: %s from player ID: %d", msgType, player.Id)
+		var payload json.RawMessage
+		msg := models.Message{
+			Payload: &payload,
+		}
+		if err := json.Unmarshal(message, &msg); err != nil {
+			log.Println("Error unmarshalling message:", err)
+			continue
+		}
 
-		requestHandler := RequestHandlers[msgType]
+		requestHandler := RequestHandlers[msg.Type]
 		if requestHandler != nil {
-			log.Printf("Handling request type: %s for player ID: %d", msgType, player.Id)
-			requestHandler(player, container, payload)
+			requestHandler(player, container, &payload)
 		} else {
-			log.Printf("No handler found for request type: %s", msgType)
+			log.Printf("No handler for message type: %s", msg.Type)
 		}
 	}
-}
-
-func readMessage(conn *net.Conn) (string, *json.RawMessage, bool) {
-	log.Print(conn)
-    request, err := bufio.NewReader(*conn).ReadString('\n')
-    if err != nil {
-        if err.Error() == "EOF" {
-            log.Println("Connection closed by client (EOF)")
-        } else {
-            log.Printf("Error reading: %s", err.Error())
-        }
-        return "", nil, true
-    }
-
-    log.Printf("Received message: %s", request)
-
-    var payload json.RawMessage
-    msg := models.Message{
-        Payload: &payload,
-    }
-    if err := json.Unmarshal([]byte(request), &msg); err != nil {
-        log.Printf("Error unmarshalling message: %s", err.Error())
-        return "", nil, true
-    }
-    return msg.Type, &payload, false
 }

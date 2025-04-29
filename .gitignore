@@ -1,0 +1,29 @@
+# Binaries for programs and plugins
+*.exe
+*.exe~
+*.dll
+*.so
+*.dylib
+.env
+galcon
+
+# Test binary, build with `go test -c`
+*.test
+
+# Output of the go coverage tool, specifically when used with LiteIDE
+*.out
+
+.idea/*
+!.idea/runConfigurations
+*.iml
+**/.DS_Store
+.idea/workspace.xml
+src/github.com
+src/golang.org
+src/cloud.google.com
+src/gopkg.in
+
+bin
+pkg
+
+docker login --username=_ --password=199f592d-2e30-4a87-9d24-95721ccc0fd8 registry.heroku.com
